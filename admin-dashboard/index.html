@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NyayMitra Admin Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Mukta:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --teal-900:#134e4a;--teal-700:#0f766e;--teal-500:#14b8a6;--teal-400:#2dd4bf;--teal-300:#5eead4;
+      --saffron-500:#f59e0b;--saffron-300:#fcd34d;
+      --dark-950:#030712;--dark-900:#0a0f1a;--dark-800:#111827;--dark-700:#1f2937;
+      --dark-600:#374151;--dark-400:#9ca3af;--dark-300:#d1d5db;
+      --red-400:#f87171;--purple-400:#a78bfa;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Mukta',sans-serif;background:var(--dark-950);color:var(--dark-300);height:100vh;overflow:hidden}
+    ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--dark-900)}::-webkit-scrollbar-thumb{background:var(--teal-700);border-radius:3px}
+    button{cursor:pointer;font-family:'Mukta',sans-serif}
+
+    .admin-layout{display:flex;height:100vh}
+    .admin-nav{width:220px;background:var(--dark-900);border-right:1px solid rgba(20,184,166,0.12);display:flex;flex-direction:column;flex-shrink:0}
+    .main-area{flex:1;display:flex;overflow:hidden;flex-direction:column}
+
+    /* Nav */
+    .nav-logo{padding:18px 16px;border-bottom:1px solid rgba(20,184,166,0.1)}
+    .nav-logo-title{font-family:'Playfair Display',serif;color:var(--teal-400);font-size:16px;font-weight:700}
+    .nav-logo-sub{font-size:9px;color:var(--saffron-300);letter-spacing:2px;margin-top:2px}
+    .nav-logo-badge{background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:4px;font-size:10px;margin-top:6px;display:inline-block}
+    .nav-links{padding:12px 0;flex:1}
+    .nav-link{display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--dark-400);font-size:13px;cursor:pointer;border-left:2px solid transparent;transition:all .2s;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left}
+    .nav-link.active{color:var(--teal-300);background:rgba(20,184,166,0.1);border-left-color:var(--teal-500)}
+    .nav-link:hover{color:var(--teal-400);background:rgba(20,184,166,0.06)}
+    .nav-badge{background:rgba(239,68,68,0.25);color:#fca5a5;padding:1px 6px;border-radius:100px;font-size:10px;margin-left:auto}
+    .nav-footer{padding:14px 16px;border-top:1px solid rgba(20,184,166,0.1)}
+    .admin-info{display:flex;align-items:center;gap:8px}
+    .admin-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--teal-700),var(--teal-500));display:flex;align-items:center;justify-content:center;font-size:14px}
+    .admin-name{font-size:12px;color:var(--dark-400)}
+    .admin-role{font-size:10px;color:var(--teal-700)}
+
+    /* Connection status bar */
+    .status-bar{padding:6px 16px;background:var(--dark-900);border-bottom:1px solid rgba(20,184,166,0.08);display:flex;align-items:center;gap:12px;font-size:11px;flex-shrink:0}
+    .status-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite}
+    .status-dot.offline{background:#ef4444;animation:none}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .status-text{color:var(--dark-400)}
+    .status-refresh{margin-left:auto;padding:3px 10px;border-radius:5px;border:1px solid rgba(20,184,166,0.3);background:none;color:var(--teal-400);font-size:11px;cursor:pointer}
+
+    /* Panels */
+    .panel{display:none;flex-direction:column;flex:1;overflow:hidden}
+    .panel.active{display:flex}
+
+    /* Stats Panel */
+    .panel-header{padding:16px 20px;border-bottom:1px solid rgba(20,184,166,0.1);font-family:'Playfair Display',serif;font-size:16px;color:var(--teal-300);flex-shrink:0}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;padding:20px;flex-shrink:0}
+    .stat-card{background:var(--dark-900);border:1px solid rgba(20,184,166,0.15);border-radius:14px;padding:16px;transition:border-color .3s}
+    .stat-card:hover{border-color:rgba(20,184,166,0.35)}
+    .stat-val{font-family:'Playfair Display',serif;font-size:32px;color:var(--teal-400);font-weight:700}
+    .stat-label{font-size:12px;color:var(--dark-400);margin-top:4px}
+    .stat-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:100px;margin-top:6px}
+    .stat-badge.up{background:rgba(34,197,94,0.2);color:#86efac}
+    .stat-badge.urgent{background:rgba(239,68,68,0.2);color:#fca5a5}
+
+    /* Charts area */
+    .charts-area{flex:1;overflow-y:auto;padding:0 20px 20px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .chart-card{background:var(--dark-900);border:1px solid rgba(20,184,166,0.15);border-radius:14px;padding:18px}
+    .chart-card.full{grid-column:1/-1}
+    .chart-title{font-size:13px;font-weight:600;color:var(--teal-300);margin-bottom:14px}
+    .chart-wrap{position:relative;height:180px}
+
+    /* Sessions Panel */
+    .sessions-layout{display:flex;flex:1;overflow:hidden}
+    .sessions-list{width:310px;display:flex;flex-direction:column;border-right:1px solid rgba(20,184,166,0.1);flex-shrink:0}
+    .sessions-header{padding:14px 16px;border-bottom:1px solid rgba(20,184,166,0.1)}
+    .sessions-title{font-size:13px;font-weight:600;color:var(--teal-300)}
+    .sessions-count{font-size:11px;color:var(--dark-400);margin-top:2px}
+    .filter-row{display:flex;gap:5px;padding:8px 12px;border-bottom:1px solid rgba(20,184,166,0.06);flex-wrap:wrap}
+    .filter-chip{padding:3px 10px;border-radius:100px;font-size:10px;cursor:pointer;border:1px solid rgba(55,65,81,0.4);color:var(--dark-400);background:none;transition:all .15s}
+    .filter-chip.active{background:rgba(20,184,166,0.2);border-color:rgba(20,184,166,0.5);color:var(--teal-300)}
+    .sessions-scroll{flex:1;overflow-y:auto}
+    .session-item{padding:12px 14px;border-bottom:1px solid rgba(20,184,166,0.05);cursor:pointer;transition:all .2s;display:flex;gap:10px;align-items:flex-start}
+    .session-item.active{background:rgba(20,184,166,0.08);border-left:2px solid var(--teal-500)}
+    .session-item:hover{background:rgba(20,184,166,0.04)}
+    .session-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:rgba(55,65,81,0.4);flex-shrink:0}
+    .session-info{flex:1;min-width:0}
+    .session-name{font-size:13px;font-weight:600;color:var(--dark-300);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .session-preview{font-size:11px;color:var(--dark-400);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .session-meta{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+    .session-time{font-size:10px;color:var(--dark-600)}
+    .badge{padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600}
+    .badge-high{background:rgba(239,68,68,0.2);color:#fca5a5}
+    .badge-medium{background:rgba(245,158,11,0.2);color:var(--saffron-300)}
+    .badge-low{background:rgba(20,184,166,0.2);color:var(--teal-300)}
+    .loading-row{padding:20px;text-align:center;color:var(--dark-400);font-size:12px}
+
+    /* Chat Panel */
+    .chat-panel{flex:1;display:flex;flex-direction:column;min-width:0}
+    .chat-header{padding:12px 20px;border-bottom:1px solid rgba(20,184,166,0.1);display:flex;align-items:center;gap:12px;background:rgba(17,24,39,.8);flex-shrink:0}
+    .chat-user-name{font-size:15px;font-weight:600;color:var(--dark-300);font-family:'Playfair Display',serif}
+    .chat-user-sub{font-size:11px;color:var(--dark-400);margin-top:2px}
+    .header-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+    .header-btn{padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;border:1px solid rgba(55,65,81,0.4);background:none;color:var(--dark-400);transition:all .2s}
+    .header-btn:hover{border-color:rgba(20,184,166,0.4);color:var(--teal-300)}
+    .header-btn.danger{border-color:rgba(239,68,68,0.3);color:#fca5a5}
+    .header-btn.success{border-color:rgba(20,184,166,0.4);color:var(--teal-300)}
+    .header-btn.warn{border-color:rgba(245,158,11,0.4);color:var(--saffron-300)}
+    .chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px}
+    .msg{display:flex;gap:8px;max-width:85%;animation:fadeIn .3s ease}
+    .msg.user{align-self:flex-end;flex-direction:row-reverse}
+    .msg.assistant,.msg.ai{align-self:flex-start}
+    .msg.admin-msg{align-self:flex-end;flex-direction:row-reverse}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    .msg-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:rgba(55,65,81,0.5);margin-top:2px}
+    .msg-av.ai-av{background:linear-gradient(135deg,var(--teal-700),var(--teal-500))}
+    .msg-av.admin-av{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+    .msg-bubble{border-radius:14px;padding:10px 14px;font-size:13px;line-height:1.6;white-space:pre-wrap}
+    .user-bubble{background:rgba(55,65,81,0.4);color:var(--dark-300);border-bottom-right-radius:4px}
+    .ai-bubble,.assistant-bubble{background:rgba(17,24,39,.8);border:1px solid rgba(20,184,166,0.15);color:#e5e7eb;border-bottom-left-radius:4px}
+    .admin-bubble{background:linear-gradient(135deg,rgba(124,58,237,.3),rgba(124,58,237,.15));border:1px solid rgba(124,58,237,.3);color:#e9d5ff;border-bottom-right-radius:4px}
+    .msg-time{font-size:10px;color:var(--dark-600);align-self:flex-end;margin-bottom:2px}
+    .ipc-chips-admin{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+    .ipc-chip-admin{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:var(--saffron-300);padding:1px 8px;border-radius:100px;font-size:10px}
+    .urgency-banner{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:6px 12px;font-size:12px;color:#fca5a5;display:flex;align-items:center;gap:8px}
+    .empty-chat{text-align:center;color:var(--dark-600);font-size:14px;margin:auto;padding:40px}
+
+    /* Admin Reply Area */
+    .reply-area{padding:14px 20px;border-top:1px solid rgba(20,184,166,.1);background:rgba(17,24,39,.8);flex-shrink:0}
+    .ai-suggest-bar{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+    .ai-suggest-btn{background:rgba(124,58,237,.2);border:1px solid rgba(124,58,237,.4);color:#c4b5fd;padding:5px 14px;border-radius:8px;font-size:12px;cursor:pointer;transition:all .2s;flex-shrink:0}
+    .ai-suggest-btn:hover{background:rgba(124,58,237,.35)}
+    .ai-suggest-text{flex:1;font-size:12px;color:var(--dark-400);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .reply-row{display:flex;gap:8px;align-items:flex-end}
+    .reply-input{flex:1;background:rgba(3,7,18,.6);border:1px solid rgba(20,184,166,.25);border-radius:12px;padding:10px 14px;color:#e5e7eb;font-family:'Mukta',sans-serif;font-size:14px;outline:none;resize:none;min-height:38px;max-height:100px}
+    .reply-input:focus{border-color:rgba(20,184,166,.5)}
+    .reply-send{background:linear-gradient(135deg,#0f766e,#14b8a6);border:none;border-radius:10px;width:38px;height:38px;color:#fff;font-size:18px;flex-shrink:0;transition:all .2s}
+    .reply-send:hover{transform:scale(1.05)}
+
+    /* AI Panel */
+    .ai-panel{width:270px;background:var(--dark-900);border-left:1px solid rgba(20,184,166,.1);display:flex;flex-direction:column;flex-shrink:0}
+    .ai-panel-header{padding:14px 16px;border-bottom:1px solid rgba(20,184,166,.1)}
+    .ai-panel-title{font-size:13px;font-weight:600;color:var(--teal-300)}
+    .ai-panel-body{flex:1;overflow-y:auto;padding:14px}
+    .ai-section{margin-bottom:18px}
+    .ai-section-label{font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;font-weight:600}
+    .sentiment-bar{height:6px;border-radius:100px;margin-bottom:4px;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);position:relative}
+    .sentiment-cursor{position:absolute;top:-4px;width:14px;height:14px;border-radius:50%;border:2px solid white;background:#f59e0b;transform:translateX(-50%);transition:left .5s ease}
+    .suggestion-box{background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);border-radius:10px;padding:12px}
+    .suggestion-text{font-size:12px;color:#c4b5fd;line-height:1.6}
+    .suggestion-sections{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+    .suggestion-chip{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.25);color:var(--saffron-300);padding:1px 8px;border-radius:100px;font-size:10px}
+    .use-suggestion{width:100%;background:rgba(124,58,237,.25);border:1px solid rgba(124,58,237,.4);color:#c4b5fd;padding:6px;border-radius:8px;font-size:11px;margin-top:8px;cursor:pointer;transition:all .2s}
+    .use-suggestion:hover{background:rgba(124,58,237,.4)}
+    .ipc-tag-list{display:flex;flex-wrap:wrap;gap:4px}
+
+    /* Notifications */
+    .notif-list{flex:1;overflow-y:auto;padding:14px}
+    .notif-item{background:var(--dark-900);border:1px solid rgba(55,65,81,.3);border-radius:10px;padding:12px;margin-bottom:10px}
+    .notif-item.high{border-color:rgba(239,68,68,.3)}
+    .notif-item.medium{border-color:rgba(245,158,11,.3)}
+    .notif-title{font-size:13px;font-weight:600;color:var(--dark-300);margin-bottom:4px}
+    .notif-desc{font-size:12px;color:var(--dark-400);line-height:1.5}
+    .notif-time{font-size:10px;color:var(--dark-600);margin-top:6px}
+    .notif-actions{display:flex;gap:8px;margin-top:8px}
+    .notif-btn{padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer;background:none;transition:all .2s}
+
+    /* Tag buttons */
+    .tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    .tag-btn{padding:3px 10px;border-radius:100px;font-size:10px;cursor:pointer;border:1px solid rgba(55,65,81,.5);background:none;color:var(--dark-400);transition:all .15s}
+    .tag-btn:hover{border-color:rgba(20,184,166,.4);color:var(--teal-300)}
+  </style>
+</head>
+<body>
+<div class="admin-layout">
+  <!-- Sidebar Nav -->
+  <nav class="admin-nav">
+    <div class="nav-logo">
+      <div class="nav-logo-title">⚖️ NyayMitra</div>
+      <div class="nav-logo-sub">ADMIN PORTAL</div>
+      <div class="nav-logo-badge" id="live-badge">● LIVE</div>
+    </div>
+    <div class="nav-links">
+      <button class="nav-link active" onclick="showPanel('dashboard',this)">📊 Dashboard</button>
+      <button class="nav-link" onclick="showPanel('sessions',this)">💬 Sessions <span class="nav-badge" id="urgent-count">3</span></button>
+      <button class="nav-link" onclick="showPanel('analytics',this)">📈 Analytics</button>
+      <button class="nav-link" onclick="showPanel('notifications',this)">🔔 Alerts <span class="nav-badge">5</span></button>
+      <button class="nav-link" onclick="window.open('http://localhost:3000','_blank')">🌐 Open App ↗</button>
+    </div>
+    <div class="nav-footer">
+      <div class="admin-info">
+        <div class="admin-avatar">👮</div>
+        <div>
+          <div class="admin-name">Admin User</div>
+          <div class="admin-role">Senior Legal Officer</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="main-area">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-dot" id="conn-dot"></div>
+      <span class="status-text" id="conn-text">Connecting to backend...</span>
+      <span style="color:var(--dark-600);font-size:10px" id="last-refresh"></span>
+      <button class="status-refresh" onclick="refreshAll()">↻ Refresh</button>
+    </div>
+
+    <!-- Dashboard Panel -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="panel-header">📊 Live Dashboard</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val" id="stat-active">—</div>
+          <div class="stat-label">Active Sessions</div>
+          <div class="stat-badge up">● Live</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="stat-resolved">—</div>
+          <div class="stat-label">Resolved Today</div>
+          <div class="stat-badge up">↑ Good</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="stat-urgent">—</div>
+          <div class="stat-label">Urgent Pending</div>
+          <div class="stat-badge urgent">⚠ High Priority</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="stat-total">—</div>
+          <div class="stat-label">Total Cases</div>
+          <div class="stat-badge up">All Time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val" id="stat-avgtime">—</div>
+          <div class="stat-label">Avg Resolution</div>
+          <div class="stat-badge up">Efficient</div>
+        </div>
+      </div>
+      <div class="charts-area">
+        <div class="chart-card">
+          <div class="chart-title">📂 Case Categories</div>
+          <div class="chart-wrap"><canvas id="chart-categories"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">⚡ Urgency Breakdown</div>
+          <div class="chart-wrap"><canvas id="chart-urgency"></canvas></div>
+        </div>
+        <div class="chart-card full">
+          <div class="chart-title">📅 Weekly Sessions vs Resolved</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-weekly"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">🌐 Language Breakdown</div>
+          <div class="chart-wrap"><canvas id="chart-language"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">🎯 AI Accuracy Metrics</div>
+          <div class="chart-wrap"><canvas id="chart-accuracy"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions Panel -->
+    <div class="panel" id="panel-sessions">
+      <div class="sessions-layout">
+        <!-- Session List -->
+        <div class="sessions-list">
+          <div class="sessions-header">
+            <div class="sessions-title">Active Sessions</div>
+            <div class="sessions-count" id="sessions-count">Loading...</div>
+          </div>
+          <div class="filter-row">
+            <button class="filter-chip active" onclick="filterSessions('all',this)">All</button>
+            <button class="filter-chip" onclick="filterSessions('high',this)">🔴 High</button>
+            <button class="filter-chip" onclick="filterSessions('medium',this)">🟡 Medium</button>
+            <button class="filter-chip" onclick="filterSessions('low',this)">🟢 Low</button>
+          </div>
+          <div class="sessions-scroll" id="sessions-scroll">
+            <div class="loading-row">Loading sessions...</div>
+          </div>
+        </div>
+
+        <!-- Chat View -->
+        <div class="chat-panel">
+          <div class="chat-header">
+            <div>
+              <div class="chat-user-name" id="chat-user-name">Select a session</div>
+              <div class="chat-user-sub" id="chat-user-sub">Choose a session from the left to view conversation</div>
+            </div>
+            <div class="header-actions">
+              <button class="header-btn warn" onclick="flagUrgent()">🔴 Flag Urgent</button>
+              <button class="header-btn warn" onclick="escalateSession()">↑ Escalate</button>
+              <button class="header-btn success" onclick="resolveSession()">✅ Resolve</button>
+            </div>
+          </div>
+          <!-- Tag row -->
+          <div style="padding:8px 16px;border-bottom:1px solid rgba(20,184,166,0.07);background:rgba(17,24,39,.5);flex-shrink:0">
+            <span style="font-size:10px;color:var(--dark-400)">TAG:</span>
+            <div class="tag-row" style="display:inline-flex;margin-left:8px">
+              <button class="tag-btn" onclick="tagSession('property')">🏠 Property</button>
+              <button class="tag-btn" onclick="tagSession('domestic')">🏥 Domestic</button>
+              <button class="tag-btn" onclick="tagSession('cyber')">💻 Cyber</button>
+              <button class="tag-btn" onclick="tagSession('criminal')">🚔 Criminal</button>
+              <button class="tag-btn" onclick="tagSession('labour')">👔 Labour</button>
+              <button class="tag-btn" onclick="tagSession('rti')">📋 RTI</button>
+            </div>
+          </div>
+          <div class="chat-messages" id="chat-messages">
+            <div class="empty-chat">⚖️<br><br>Select a session to view conversation</div>
+          </div>
+          <div class="reply-area">
+            <div class="ai-suggest-bar">
+              <button class="ai-suggest-btn" onclick="loadAISuggestion()">✨ AI Suggest</button>
+              <div class="ai-suggest-text" id="ai-suggest-text">Click to get AI-generated reply suggestion</div>
+            </div>
+            <div class="reply-row">
+              <textarea class="reply-input" id="reply-input" placeholder="Type admin reply... (Enter to send)" rows="1"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAdminReply()}"
+                oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px'"></textarea>
+              <button class="reply-send" onclick="sendAdminReply()">➤</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Panel -->
+        <div class="ai-panel">
+          <div class="ai-panel-header">
+            <div class="ai-panel-title">🤖 AI Insights</div>
+          </div>
+          <div class="ai-panel-body">
+            <div class="ai-section">
+              <div class="ai-section-label">Sentiment</div>
+              <div class="sentiment-bar"><div class="sentiment-cursor" id="sentiment-cursor" style="left:40%"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dark-400);margin-top:4px">
+                <span>Calm</span><span>Anxious</span><span>Distress</span>
+              </div>
+            </div>
+            <div class="ai-section">
+              <div class="ai-section-label">IPC Sections Detected</div>
+              <div class="ipc-tag-list" id="ipc-tag-list">
+                <span style="font-size:11px;color:var(--dark-600)">Select a session</span>
+              </div>
+            </div>
+            <div class="ai-section">
+              <div class="ai-section-label">AI Suggested Reply</div>
+              <div class="suggestion-box">
+                <div class="suggestion-text" id="suggestion-text">Click "AI Suggest" to generate a reply based on conversation context.</div>
+                <div class="suggestion-sections" id="suggestion-sections"></div>
+                <button class="use-suggestion" onclick="useSuggestion()">📋 Use This Reply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics Panel -->
+    <div class="panel" id="panel-analytics">
+      <div class="panel-header">📈 Analytics</div>
+      <div style="flex:1;overflow-y:auto;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="chart-card full">
+          <div class="chart-title">📅 Documents Generated (This Week)</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-docs-analytics"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">📂 Case Type Distribution</div>
+          <div class="chart-wrap"><canvas id="chart-categories-analytics"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">🎯 AI Model Accuracy</div>
+          <div class="chart-wrap"><canvas id="chart-accuracy-analytics"></canvas></div>
+        </div>
+        <div class="chart-card full">
+          <div class="chart-title">📊 Sessions Trend (This Week)</div>
+          <div class="chart-wrap" style="height:200px"><canvas id="chart-trend-analytics"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notifications Panel -->
+    <div class="panel" id="panel-notifications">
+      <div class="panel-header">🔔 Alerts & Notifications</div>
+      <div class="notif-list" id="notif-list">
+        <div class="loading-row">Loading alerts...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ───────────────────────────────────────────────────
+const API_HOST = window.location.hostname || 'localhost';
+const API_PORT = window.location.port ? (parseInt(window.location.port) - 1) : 8000; // Admin on 8001, backend on 8000
+const API_BASE = `http://${API_HOST}:${API_PORT}/api/admin`;
+const WS_BASE = `ws://${API_HOST}:${API_PORT}/ws/admin/admin_001`;
+let allSessions = [];
+let activeSession = null;
+let currentSuggestion = '';
+let charts = {};
+let wsAdmin = null;
+let statsData = null;
+
+// ── CHART DEFAULTS ───────────────────────────────────────────
+Chart.defaults.color = '#9ca3af';
+Chart.defaults.borderColor = 'rgba(20,184,166,0.08)';
+Chart.defaults.font.family = 'Mukta, sans-serif';
+Chart.defaults.font.size = 11;
+
+const TEAL = '#14b8a6';
+const SAFFRON = '#f59e0b';
+const RED = '#ef4444';
+const PURPLE = '#a78bfa';
+const GREEN = '#22c55e';
+
+function chartColors(arr) {
+  const palette = [TEAL,'#60a5fa',SAFFRON,PURPLE,GREEN,RED,'#f472b6','#34d399'];
+  return arr.map((_,i) => palette[i % palette.length]);
+}
+
+// ── API HELPERS ───────────────────────────────────────────────
+async function apiFetch(path) {
+  try {
+    const r = await fetch(API_BASE + path);
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch(e) {
+    console.warn('API error:', path, e.message);
+    return null;
+  }
+}
+
+async function apiPost(path, params = {}) {
+  try {
+    const qs = new URLSearchParams(params).toString();
+    const r = await fetch(API_BASE + path + (qs ? '?' + qs : ''), { method: 'POST' });
+    return await r.json();
+  } catch(e) {
+    console.warn('API POST error:', path, e);
+    return null;
+  }
+}
+
+// ── CONNECTION STATUS ─────────────────────────────────────────
+function setConnected(ok) {
+  const dot = document.getElementById('conn-dot');
+  const txt = document.getElementById('conn-text');
+  const badge = document.getElementById('live-badge');
+  dot.className = 'status-dot' + (ok ? '' : ' offline');
+  txt.textContent = ok ? '● Backend connected — http://localhost:8000' : '✕ Backend offline — showing demo data';
+  badge.style.background = ok ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)';
+  badge.style.color = ok ? '#86efac' : '#fca5a5';
+  badge.textContent = ok ? '● LIVE' : '● OFFLINE';
+  document.getElementById('last-refresh').textContent = 'Last refreshed: ' + new Date().toLocaleTimeString();
+}
+
+// ── WEBSOCKET (admin channel) ─────────────────────────────────
+function initAdminWS() {
+  try {
+    if (wsAdmin && wsAdmin.readyState === WebSocket.OPEN) return;
+    wsAdmin = new WebSocket(WS_BASE);
+    wsAdmin.onopen = () => {
+      console.log('Admin WS connected');
+      setConnected(true);
+    };
+    wsAdmin.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === 'new_session') loadSessions();
+      } catch(err) {
+        console.warn('Invalid WS message', err);
+      }
+    };
+    wsAdmin.onerror = () => {
+      console.warn('Admin WS error');
+      setConnected(false);
+    };
+    wsAdmin.onclose = () => {
+      console.warn('Admin WS closed, reconnecting...');
+      setConnected(false);
+      setTimeout(initAdminWS, 3000);
+    };
+  } catch(e) {
+    console.warn('Admin WS init failed', e);
+    setConnected(false);
+    setTimeout(initAdminWS, 3000);
+  }
+}
+
+// ── LOAD STATS ────────────────────────────────────────────────
+async function loadStats() {
+  const data = await apiFetch('/stats');
+  setConnected(!!data);
+  if (!data) return;
+  statsData = data;
+  document.getElementById('stat-active').textContent = data.active_sessions;
+  document.getElementById('stat-resolved').textContent = data.resolved_today;
+  document.getElementById('stat-urgent').textContent = data.urgent_pending;
+  document.getElementById('stat-total').textContent = data.total_cases;
+  document.getElementById('stat-avgtime').textContent = data.avg_resolution_time;
+  document.getElementById('urgent-count').textContent = data.urgent_pending;
+  renderCharts(data);
+}
+
+// ── CHARTS ────────────────────────────────────────────────────
+function makeChart(id, config) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(el.getContext('2d'), config);
+}
+
+function renderCharts(data) {
+  // Categories bar
+  const cats = data.top_categories || [];
+  makeChart('chart-categories', {
+    type: 'bar',
+    data: {
+      labels: cats.map(c => c.category),
+      datasets: [{ label: 'Cases', data: cats.map(c => c.count), backgroundColor: chartColors(cats), borderRadius: 6, borderSkipped: false }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(20,184,166,0.06)' } } } }
+  });
+
+  // Urgency doughnut
+  const urg = data.urgency_breakdown || { high: 3, medium: 5, low: 4 };
+  makeChart('chart-urgency', {
+    type: 'doughnut',
+    data: {
+      labels: ['High', 'Medium', 'Low'],
+      datasets: [{ data: [urg.high, urg.medium, urg.low], backgroundColor: [RED, SAFFRON, TEAL], borderWidth: 2, borderColor: '#0a0f1a' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 10, boxWidth: 10 } } }, cutout: '65%' }
+  });
+
+  // Weekly sessions vs resolved
+  const labels = data.weekly_labels || ['Mon','Tue','Wed','Thu','Fri','Sat','Today'];
+  const sessions = data.weekly_sessions || [8, 14, 11, 19, 23, 17, 12];
+  const resolved = data.weekly_resolved || [6, 12, 9, 15, 18, 13, 8];
+  makeChart('chart-weekly', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Sessions', data: sessions, borderColor: TEAL, backgroundColor: 'rgba(20,184,166,0.1)', tension: 0.4, fill: true, pointBackgroundColor: TEAL },
+        { label: 'Resolved', data: resolved, borderColor: GREEN, backgroundColor: 'rgba(34,197,94,0.05)', tension: 0.4, fill: true, pointBackgroundColor: GREEN, borderDash: [4, 2] },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { padding: 14, boxWidth: 12 } } }, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(20,184,166,0.06)' } } } }
+  });
+
+  // Language doughnut
+  const lang = data.language_breakdown || { Hinglish: 42, Hindi: 28, English: 15, Tamil: 8, Other: 7 };
+  makeChart('chart-language', {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(lang),
+      datasets: [{ data: Object.values(lang), backgroundColor: chartColors(Object.keys(lang)), borderWidth: 2, borderColor: '#0a0f1a' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 8, boxWidth: 10 } } }, cutout: '55%' }
+  });
+
+  // Accuracy radar
+  const acc = data.accuracy_metrics || { ipc_tagging: 94, urgency_detection: 91, outcome_prediction: 87, document_generation: 98 };
+  makeChart('chart-accuracy', {
+    type: 'radar',
+    data: {
+      labels: Object.keys(acc).map(k => k.replace('_',' ')),
+      datasets: [{ label: 'Accuracy %', data: Object.values(acc), backgroundColor: 'rgba(20,184,166,0.15)', borderColor: TEAL, pointBackgroundColor: TEAL }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { r: { min: 80, max: 100, ticks: { stepSize: 5, font: { size: 9 } }, grid: { color: 'rgba(20,184,166,0.1)' }, angleLines: { color: 'rgba(20,184,166,0.1)' } } } }
+  });
+
+  // Analytics panel charts
+  const docs = data.weekly_docs || [12, 19, 8, 24, 17, 31, 22];
+  makeChart('chart-docs-analytics', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Docs Generated', data: docs, backgroundColor: 'rgba(20,184,166,0.6)', borderColor: TEAL, borderWidth: 1, borderRadius: 6 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(20,184,166,0.06)' } } } }
+  });
+
+  makeChart('chart-categories-analytics', {
+    type: 'pie',
+    data: {
+      labels: cats.map(c => c.category),
+      datasets: [{ data: cats.map(c => c.count), backgroundColor: chartColors(cats), borderWidth: 2, borderColor: '#0a0f1a' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 8, boxWidth: 10 } } } }
+  });
+
+  makeChart('chart-accuracy-analytics', {
+    type: 'bar',
+    data: {
+      labels: Object.keys(acc).map(k => k.replace(/_/g,' ')),
+      datasets: [{ label: '%', data: Object.values(acc), backgroundColor: chartColors(Object.keys(acc)), borderRadius: 6 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { min: 80, max: 100, grid: { color: 'rgba(20,184,166,0.06)' } }, y: { grid: { display: false } } } }
+  });
+
+  makeChart('chart-trend-analytics', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'New Sessions', data: sessions, borderColor: TEAL, backgroundColor: 'rgba(20,184,166,0.1)', tension: 0.4, fill: true },
+        { label: 'Resolved', data: resolved, borderColor: GREEN, backgroundColor: 'rgba(34,197,94,0.05)', tension: 0.4, fill: true },
+        { label: 'Docs', data: docs, borderColor: SAFFRON, backgroundColor: 'rgba(245,158,11,0.05)', tension: 0.4, fill: false, borderDash: [4,2] },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { padding: 14, boxWidth: 12 } } }, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(20,184,166,0.06)' } } } }
+  });
+}
+
+// ── SESSIONS ──────────────────────────────────────────────────
+async function loadSessions(filter = 'all') {
+  const qs = filter !== 'all' ? `?urgency=${filter}` : '';
+  const data = await apiFetch('/sessions' + qs);
+  if (!data) return;
+  allSessions = data.sessions;
+  document.getElementById('sessions-count').textContent = `${data.total} sessions`;
+  renderSessionList(allSessions, filter);
+}
+
+function renderSessionList(sessions, filter) {
+  const container = document.getElementById('sessions-scroll');
+  if (!sessions.length) { container.innerHTML = '<div class="loading-row">No sessions found</div>'; return; }
+  const avatars = ['👩','👨','👦','👩‍🦳','👨‍💼','👩‍🏫','👨‍⚖️','🧑','👩‍💻','🧓'];
+  container.innerHTML = sessions.map((s, i) => `
+    <div class="session-item ${activeSession?.session_id === s.session_id ? 'active' : ''}" onclick="loadSession('${s.session_id}')">
+      <div class="session-avatar">${avatars[i % avatars.length]}</div>
+      <div class="session-info">
+        <div class="session-name">${escHtml(s.user_name)} ${s.urgency === 'high' ? '⚠️' : ''}</div>
+        <div class="session-preview">${escHtml(s.preview || '')}</div>
+        <div class="session-meta">
+          <span class="session-time">${s.location} · ${s.last_activity}</span>
+          <span class="badge badge-${s.urgency}">${s.urgency}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterSessions(filter, btn) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  if (filter === 'all') { renderSessionList(allSessions, filter); return; }
+  renderSessionList(allSessions.filter(s => s.urgency === filter), filter);
+}
+
+async function loadSession(id) {
+  activeSession = allSessions.find(s => s.session_id === id);
+  if (!activeSession) return;
+  document.getElementById('chat-user-name').textContent = activeSession.user_name;
+  document.getElementById('chat-user-sub').textContent = `${activeSession.location} · ${activeSession.tag} · ${activeSession.messages} msgs · ${activeSession.urgency} urgency`;
+
+  // Update IPC tags in AI panel
+  const ipcList = document.getElementById('ipc-tag-list');
+  if (activeSession.ipc_sections && activeSession.ipc_sections.length) {
+    ipcList.innerHTML = activeSession.ipc_sections.map(s => `<span class="ipc-chip-admin">${escHtml(s)}</span>`).join('');
+  } else {
+    ipcList.innerHTML = '<span style="font-size:11px;color:var(--dark-600)">None detected yet</span>';
+  }
+
+  // Sentiment
+  const sent = { high: '80%', medium: '55%', low: '30%' };
+  document.getElementById('sentiment-cursor').style.left = sent[activeSession.urgency] || '40%';
+
+  // Load messages
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '<div class="loading-row">Loading messages...</div>';
+  const data = await apiFetch(`/sessions/${id}/messages`);
+  if (!data) { container.innerHTML = '<div class="empty-chat">Could not load messages</div>'; return; }
+  const msgs = data.messages;
+  if (!msgs.length) { container.innerHTML = '<div class="empty-chat">No messages yet in this session</div>'; return; }
+
+  container.innerHTML = msgs.map(m => {
+    const isUser = m.role === 'user';
+    const isAI = m.role === 'assistant' || m.role === 'ai';
+    const cls = isUser ? 'user' : (isAI ? 'assistant' : 'admin-msg');
+    const avCls = isAI ? 'ai-av' : '';
+    const av = isUser ? '👤' : (isAI ? '⚖️' : '👮');
+    const bubbleCls = isUser ? 'user-bubble' : (isAI ? 'assistant-bubble' : 'admin-bubble');
+    const ipcHtml = m.ipc_sections?.length ? `<div class="ipc-chips-admin">${m.ipc_sections.map(s => `<span class="ipc-chip-admin">${escHtml(s)}</span>`).join('')}</div>` : '';
+    const urgBanner = m.urgency === 'high' ? '<div class="urgency-banner" style="margin-bottom:6px">🔴 High Urgency Detected</div>' : '';
+    const time = m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    return `
+      <div class="msg ${cls}">
+        <div class="msg-av ${avCls}">${av}</div>
+        <div>
+          ${urgBanner}
+          <div class="msg-bubble ${bubbleCls}">${escHtml(m.content)}</div>
+          ${ipcHtml}
+          <div class="msg-time">${m.role === 'ai' || m.role === 'assistant' ? '⚖️ NyayMitra AI' : (isUser ? '👤 User' : '👮 Admin')} · ${time}</div>
+        </div>
+      </div>`;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+
+  // Re-render session list to update active highlight
+  renderSessionList(allSessions, 'all');
+}
+
+// ── AI SUGGESTION ─────────────────────────────────────────────
+async function loadAISuggestion() {
+  if (!activeSession) { alert('Please select a session first.'); return; }
+  document.getElementById('ai-suggest-text').textContent = 'Generating suggestion...';
+  const data = await apiPost(`/ai-suggest/${activeSession.session_id}`);
+  if (!data) { document.getElementById('ai-suggest-text').textContent = 'Could not load suggestion.'; return; }
+  currentSuggestion = data.suggestion;
+  document.getElementById('suggestion-text').textContent = data.suggestion;
+  document.getElementById('suggestion-sections').innerHTML = (data.ipc_sections || []).map(s => `<span class="suggestion-chip">${escHtml(s)}</span>`).join('');
+  document.getElementById('ai-suggest-text').textContent = data.suggestion.substring(0, 90) + '...';
+}
+
+function useSuggestion() {
+  document.getElementById('reply-input').value = currentSuggestion;
+  document.getElementById('reply-input').focus();
+}
+
+// ── ADMIN REPLY ───────────────────────────────────────────────
+async function sendAdminReply() {
+  const input = document.getElementById('reply-input');
+  const text = input.value.trim();
+  if (!text || !activeSession) return;
+
+  // Optimistic UI
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg admin-msg';
+  div.style.animation = 'fadeIn .3s ease';
+  div.innerHTML = `<div class="msg-av admin-av">👮</div><div><div class="msg-bubble admin-bubble">${escHtml(text)}</div><div class="msg-time">👮 Admin · Just now</div></div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Send to backend
+  await apiPost('/reply', { session_id: activeSession.session_id, message: text, admin_id: 'admin_001' });
+}
+
+// ── SESSION ACTIONS ───────────────────────────────────────────
+async function resolveSession() {
+  if (!activeSession) return;
+  if (!confirm(`Resolve session for ${activeSession.user_name}?`)) return;
+  await apiPost(`/sessions/${activeSession.session_id}/resolve`, { resolution_note: 'Resolved by admin' });
+  alert(`✅ Session resolved: ${activeSession.user_name}`);
+  loadSessions();
+}
+
+async function escalateSession() {
+  if (!activeSession) return;
+  await apiPost(`/sessions/${activeSession.session_id}/escalate`, { reason: 'Manual escalation by admin' });
+  alert(`↑ Escalated: ${activeSession.user_name}`);
+  loadSessions();
+}
+
+async function flagUrgent() {
+  if (!activeSession) return;
+  await apiPost(`/sessions/${activeSession.session_id}/tag`, { tag: activeSession.tag || 'general', urgency: 'high' });
+  alert(`🔴 Flagged urgent: ${activeSession.user_name}`);
+  loadSessions();
+}
+
+async function tagSession(tag) {
+  if (!activeSession) return;
+  await apiPost(`/sessions/${activeSession.session_id}/tag`, { tag, urgency: activeSession.urgency });
+  activeSession.tag = tag;
+  document.getElementById('chat-user-sub').textContent = `${activeSession.location} · ${tag} · ${activeSession.messages} msgs · ${activeSession.urgency} urgency`;
+}
+
+// ── NOTIFICATIONS ─────────────────────────────────────────────
+const NOTIFICATIONS = [
+  { urgency:'high', title:'🔴 Domestic Violence — Priya Sharma', desc:'Distress keywords detected. User appears to be in immediate danger.', time:'2 minutes ago' },
+  { urgency:'high', title:'🔴 Financial Fraud — Suresh Patel', desc:'Cyber fraud case — ₹50,000. 24hr recovery window active.', time:'1 hour ago' },
+  { urgency:'medium', title:'🟡 Property Encroachment — Ramesh Kumar', desc:'Land dispute with possible physical threat mentioned.', time:'15 minutes ago' },
+  { urgency:'low', title:'🟢 RTI Application Filed', desc:'Meena Devi successfully filed RTI with AI assistance. Document generated.', time:'2 hours ago' },
+  { urgency:'low', title:'🟢 System: 12 Languages Active', desc:'Tamil, Bengali, Marathi, Gujarati and 8 more now serving users.', time:'Today 6:00 AM' },
+];
+
+function renderNotifications() {
+  const container = document.getElementById('notif-list');
+  container.innerHTML = NOTIFICATIONS.map(n => `
+    <div class="notif-item ${n.urgency}">
+      <div class="notif-title">${n.title}</div>
+      <div class="notif-desc">${n.desc}</div>
+      <div class="notif-time">${n.time}</div>
+      <div class="notif-actions">
+        <button class="notif-btn" style="border:1px solid rgba(20,184,166,.3);color:#5eead4" onclick="showPanel('sessions',null)">View Session</button>
+        <button class="notif-btn" style="border:1px solid rgba(55,65,81,.4);color:#6b7280" onclick="this.closest('.notif-item').style.opacity='.3'">Dismiss</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── PANEL NAV ─────────────────────────────────────────────────
+function showPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (name === 'sessions') loadSessions();
+  if (name === 'notifications') renderNotifications();
+}
+
+// ── UTILS ─────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function refreshAll() {
+  await loadStats();
+  if (document.getElementById('panel-sessions').classList.contains('active')) loadSessions();
+}
+
+// ── INIT ──────────────────────────────────────────────────────
+(async () => {
+  await loadStats();
+  initAdminWS();
+  renderNotifications();
+  // Auto-refresh stats every 30s
+  setInterval(loadStats, 30000);
+})();
+</script>
+</body>
+</html>
