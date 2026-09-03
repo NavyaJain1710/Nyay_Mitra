@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: nyaymitra-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: nyaymitra-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: nyaymitra-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+
+databases:
+  - name: nyaymitra-db
+    databaseName: nyaymitra
+    user: nyaymitra
+
+  - type: redis
+    name: nyaymitra-redis
+    ipAllowList: [] # only allow internal connections
