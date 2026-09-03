@@ -18,12 +18,11 @@ services:
         generateValue: true
       - key: ENVIRONMENT
         value: production
+  - type: redis
+    name: nyaymitra-redis
+    ipAllowList: [] # only allow internal connections
 
 databases:
   - name: nyaymitra-db
     databaseName: nyaymitra
     user: nyaymitra
-
-  - type: redis
-    name: nyaymitra-redis
-    ipAllowList: [] # only allow internal connections
