@@ -4,6 +4,8 @@ import { Toaster } from 'react-hot-toast';
 import ChatPage from './pages/ChatPage';
 import LandingPage from './pages/LandingPage';
 import DocumentsPage from './pages/DocumentsPage';
+import AuthPage from './pages/AuthPage';
+import UserDashboard from './pages/UserDashboard';
 import './styles/globals.css';
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
       />
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/dashboard" element={<UserDashboard />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
       </Routes>

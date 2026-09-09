@@ -221,7 +221,14 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([SYSTEM_GREETING]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}`);
+  const [sessionId] = useState(() => {
+    const res = localStorage.getItem('resume_session');
+    if (res) {
+      localStorage.removeItem('resume_session');
+      return res;
+    }
+    return `session_${Date.now()}`;
+  });
   const [language, setLanguage] = useState('hinglish');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chatHistory, setChatHistory] = useState([
@@ -243,7 +250,8 @@ export default function ChatPage() {
   useEffect(() => {
     const connectWS = () => {
       try {
-        const ws = new WebSocket(`ws://localhost:8000/ws/chat/${sessionId}`);
+        const wsUrl = API_BASE.replace('http://', 'ws://').replace('https://', 'wss://');
+        const ws = new WebSocket(`${wsUrl}/ws/chat/${sessionId}`);
         wsRef.current = ws;
         ws.onopen = () => setIsConnected(true);
         ws.onclose = () => { setIsConnected(false); setTimeout(connectWS, 3000); };
@@ -314,12 +322,14 @@ export default function ChatPage() {
     }
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ message: text, language, session_id: sessionId }));
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      wsRef.current.send(JSON.stringify({ message: text, language, session_id: sessionId, user_email: user.email }));
     } else {
       try {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
         const res = await fetch(`${API_BASE}/api/chat`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, language, session_id: sessionId }),
+          body: JSON.stringify({ message: text, language, session_id: sessionId, user_email: user.email }),
         });
         const data = await res.json();
         setIsTyping(false);

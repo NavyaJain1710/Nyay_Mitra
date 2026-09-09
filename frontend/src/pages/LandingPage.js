@@ -51,9 +51,15 @@ export default function LandingPage() {
           <div style={styles.navLinks}>
             <a href="#features" style={styles.navLink}>Features</a>
             <a href="#about" style={styles.navLink}>About</a>
-            <a href="http://127.0.0.1:5500" target="_blank" rel="noopener noreferrer" style={styles.navLink}>Admin</a>
-            <button onClick={() => navigate('/chat')} style={styles.navCta}>
-              Start Chat →
+            <a href={process.env.REACT_APP_ADMIN_URL || "http://localhost:8001"} target="_blank" rel="noopener noreferrer" style={styles.navLink}>Admin</a>
+            <button onClick={() => {
+              if (localStorage.getItem('token')) {
+                navigate('/dashboard');
+              } else {
+                navigate('/login');
+              }
+            }} style={styles.navCta}>
+              {localStorage.getItem('token') ? 'Dashboard →' : 'Login / Sign Up →'}
             </button>
           </div>
         </div>

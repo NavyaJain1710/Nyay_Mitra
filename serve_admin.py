@@ -21,7 +21,7 @@ class AdminDashboardHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     os.chdir(ADMIN_DIR)
     with socketserver.TCPServer(("", PORT), AdminDashboardHandler) as httpd:
-        print(f"🎯 Admin Dashboard running at http://localhost:{PORT}")
-        print(f"📁 Serving from: {ADMIN_DIR}")
-        print(f"⛔ Press Ctrl+C to stop")
+        print(f"Admin Dashboard running at http://localhost:{PORT}")
+        print(f"Serving from: {ADMIN_DIR}")
+        print(f"Press Ctrl+C to stop")
         httpd.serve_forever()

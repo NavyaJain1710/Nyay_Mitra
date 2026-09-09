@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 from services.urgency_service import UrgencyClassifier
 from services.ipc_service import IPCTagger
+from services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -386,6 +387,49 @@ If you want, I can generate a **ready FIR/insurance claim draft** now.""",
         "ipc_sections": ["IPC 279", "IPC 337", "IPC 338", "IPC 304A", "MV Act Sec 134", "MV Act Sec 187", "CrPC 154"],
         "urgency": "high",
     },
+    "theft": {
+        "keywords": ["theft", "stolen", "chori", "purse", "wallet", "mobile", "phone stolen", "robbery", "lut", "snatched"],
+        "response_hi": """## चोरी (Theft) — तत्काल कदम उठाएं
+
+**⚠️ अभी यह करें:**
+
+**Step 1: तुरंत पुलिस को सूचित करें**
+- 112 डायल करें
+- नजदीकी पुलिस स्टेशन में FIR दर्ज करें
+
+**Step 2: अगर फोन/कार्ड चोरी हुआ है:**
+- बैंक कार्ड्स ब्लॉक करें (Customer care)
+- फोन चोरी होने पर CEIR portal (ceir.gov.in) पर IMEI ब्लॉक करें
+
+**Step 3: FIR के लिए जानकारी:**
+- समय, स्थान, क्या चोरी हुआ
+- कोई संदिग्ध व्यक्ति या CCTV?
+
+**⚖️ लागू धाराएं:**
+- IPC 378/379 (चोरी)
+- CrPC 154 (FIR)""",
+        "response_en": """## Theft / Snatching — Immediate Steps
+
+**⚠️ Do this immediately:**
+
+**Step 1: Inform Police**
+- Call 112
+- File FIR at nearest police station
+
+**Step 2: If Phone/Cards stolen:**
+- Block bank cards immediately
+- Block phone IMEI on CEIR portal (ceir.gov.in)
+
+**Step 3: FIR Details Needed:**
+- Time, location, items stolen
+- Any suspects or CCTV nearby?
+
+**⚖️ Applicable Sections:**
+- IPC 378/379 (Theft)
+- CrPC 154 (FIR)""",
+        "ipc_sections": ["IPC 378", "IPC 379", "CrPC 154"],
+        "urgency": "high",
+    },
 }
 
 DEFAULT_RESPONSE_HI = """Main aapka sawaal samajh raha hoon. Mujhe thodi aur jankari chahiye:
@@ -460,6 +504,7 @@ class ChatService:
     def __init__(self):
         self.urgency_classifier = UrgencyClassifier()
         self.ipc_tagger = IPCTagger()
+        self.rag_service = RAGService()
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "").strip()
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         logger.info("ChatService initialized")
@@ -521,6 +566,7 @@ class ChatService:
         language: str,
         fallback_response: str,
         matched_sections: List[str],
+        rag_context: str = "",
     ) -> Optional[str]:
         if not self.openai_api_key:
             return None
@@ -543,10 +589,19 @@ class ChatService:
                 "missing facts needed, and legal next steps. Clearly mention this is not a final judicial finding."
             )
 
-        language_hint = "Respond in English." if language == "english" else "Respond in simple Hinglish (Hindi+English)."
+        if language == "english":
+            language_hint = "CRITICAL: You MUST respond entirely in English."
+        elif language == "hinglish":
+            language_hint = "CRITICAL: You MUST respond in simple Hinglish (Hindi written in English alphabet)."
+        elif language == "hindi":
+            language_hint = "CRITICAL: You MUST respond entirely in Hindi script (हिंदी)."
+        else:
+            language_hint = f"CRITICAL: You MUST respond entirely in {language.capitalize()} language/script. Translate all legal advice and fallback text to {language.capitalize()}."
         system_prompt = (
             "You are NyayMitra, an Indian legal guidance assistant.\n"
+            "You must strictly base your answers on the provided RAG context. Do not hallucinate external laws or facts.\n"
             "Give practical, step-by-step legal help with relevant IPC/CrPC/MV Act sections where useful.\n"
+            "CRITICAL: For every single answer, you MUST explicitly include a section titled 'Approach' (or 'दृष्टिकोण') explaining step-by-step why and how you arrived at this conclusion based on the context.\n"
             "Do not refuse with generic follow-up loops. Give immediate actionable advice first, then ask only 1-2 critical follow-up questions if necessary.\n"
             "If user asks fault/liability, give a preliminary assessment using available facts and explain uncertainty.\n"
             "Do not claim to be a lawyer. Add a one-line caution that this is legal information, not final legal advice.\n"
@@ -556,6 +611,7 @@ class ChatService:
 
         user_prompt = (
             f"User message: {message}\n\n"
+            f"RAG Context (Use strictly to answer):\n{rag_context}\n\n"
             f"Fallback guidance (use if relevant): {fallback_response}\n"
             f"Known relevant sections from classifier: {', '.join(matched_sections) if matched_sections else 'None'}"
         )
@@ -578,7 +634,7 @@ class ChatService:
         try:
             async with httpx.AsyncClient(timeout=18.0) as client:
                 response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
+                    "https://api.groq.com/openai/v1/chat/completions",
                     headers=headers,
                     json=payload,
                 )
@@ -595,7 +651,7 @@ class ChatService:
             return match.get("response_en", match.get("response_hi", ""))
         return match.get("response_hi", match.get("response_en", ""))
 
-    async def process_message(self, message: str, session_id: str, language: str = "hinglish") -> Dict[str, Any]:
+    async def process_message(self, message: str, session_id: str, language: str = "hinglish", user_email: str = None) -> Dict[str, Any]:
         # Store in session history
         if session_id not in CHAT_SESSIONS:
             CHAT_SESSIONS[session_id] = []
@@ -603,6 +659,7 @@ class ChatService:
             "role": "user",
             "content": message,
             "timestamp": datetime.utcnow().isoformat(),
+            "user_email": user_email,
         })
 
         # Simulate AI processing delay
@@ -641,6 +698,9 @@ class ChatService:
                 response_text = DEFAULT_RESPONSE_EN if language == "english" else DEFAULT_RESPONSE_HI
             urgency = urgency_result.get("urgency", "low")
 
+        # Fetch RAG Context
+        rag_context = self.rag_service.get_context(message)
+
         # If OpenAI key is configured, enhance answer quality and fault analysis.
         # Keep fallback response in case API call fails.
         llm_response = await self._generate_openai_response(
@@ -649,6 +709,7 @@ class ChatService:
             language=language,
             fallback_response=response_text,
             matched_sections=ipc_sections,
+            rag_context=rag_context,
         )
         if llm_response:
             response_text = llm_response

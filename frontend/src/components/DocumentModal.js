@@ -55,6 +55,28 @@ const DOC_FORMS = {
       { key: 'relief', label: 'Relief Sought', placeholder: 'Refund/replacement/compensation?', required: true },
     ],
   },
+  bail: {
+    title: 'Bail Application',
+    icon: '⚖️',
+    fields: [
+      { key: 'applicant_name', label: 'Accused/Applicant Name', placeholder: 'Full name', required: true },
+      { key: 'fir_number', label: 'FIR Number', placeholder: 'e.g., 123/2024', required: true },
+      { key: 'sections', label: 'IPC Sections', placeholder: 'e.g., 323, 506', required: true },
+      { key: 'arrest_date', label: 'Date of Arrest', type: 'date', required: true },
+      { key: 'grounds', label: 'Grounds for Bail', placeholder: 'Why should bail be granted?', type: 'textarea', required: true },
+    ],
+  },
+  affidavit: {
+    title: 'Affidavit',
+    icon: '🗒️',
+    fields: [
+      { key: 'deponent_name', label: 'Deponent Name', placeholder: 'Full name', required: true },
+      { key: 'parent_name', label: 'Parent/Spouse Name', placeholder: "Son/Daughter/Wife of...", required: true },
+      { key: 'age', label: 'Age', type: 'number', required: true },
+      { key: 'address', label: 'Address', placeholder: 'Complete address', required: true },
+      { key: 'statements', label: 'Statements', placeholder: '2. That...\n3. That...', type: 'textarea', required: true },
+    ],
+  },
 };
 
 const generateDocument = (docType, formData) => {
@@ -176,6 +198,91 @@ Bar Council No.: ___________
 For and on behalf of ${formData.sender_name || '[Client Name]'}
 
 Date: ${today}
+    `.trim();
+  }
+
+  if (docType === 'complaint') {
+    return `
+CONSUMER COMPLAINT
+Under Consumer Protection Act, 2019
+
+To,
+The President,
+District Consumer Disputes Redressal Commission
+[District Name]
+
+Complainant: ${formData.consumer_name || '[Name]'}, ${formData.consumer_address || '[Address]'}
+Opposite Party: ${formData.company_name || '[Company]'}
+
+SUBJECT: Complaint for ${formData.complaint_details?.substring(0, 50) || 'Deficiency in service'}...
+
+FACTS OF THE CASE:
+Product/Service: ${formData.product_service || '[Product]'}
+Purchase Date: ${formData.purchase_date || '[Date]'}
+Amount Paid: Rs. ${formData.amount || '[Amount]'}
+
+DETAILS:
+${formData.complaint_details || '[Describe complaint]'}
+
+RELIEF SOUGHT:
+${formData.relief || '[State relief required]'}
+
+                                        ${formData.consumer_name || '[Name]'}
+                                        Date: ${today}
+    `.trim();
+  }
+
+  if (docType === 'bail') {
+    return `
+IN THE COURT OF ADDITIONAL SESSIONS JUDGE
+[Court Name, City]
+
+IN THE MATTER OF:
+${formData.applicant_name || '[Accused Name]'}
+                                        ...APPLICANT/ACCUSED
+
+FIR No.: ${formData.fir_number || '[FIR No.]'}
+Under Section: ${formData.sections || '[IPC Sections]'}
+
+APPLICATION FOR REGULAR BAIL UNDER SECTION 437/439 CrPC
+
+MOST RESPECTFULLY SHOWETH:
+
+1. The applicant was arrested on ${formData.arrest_date || '[Date]'} in the above matter.
+2. The applicant has deep roots in society and will not abscond.
+3. The applicant is willing to abide by all bail conditions.
+
+GROUNDS: ${formData.grounds || '[Grounds for bail]'}
+
+It is therefore prayed that this Hon'ble Court may be pleased to grant bail to the applicant on such terms as deemed fit.
+
+                                        [Advocate Name]
+                                        For the Applicant
+                                        Date: ${today}
+    `.trim();
+  }
+
+  if (docType === 'affidavit') {
+    return `
+AFFIDAVIT
+
+I, ${formData.deponent_name || '[Name]'}, son/daughter/wife of ${formData.parent_name || '[Parent Name]'},
+aged ${formData.age || '[Age]'} years, resident of ${formData.address || '[Address]'},
+do hereby solemnly affirm and declare as under:
+
+1. That I am the deponent in the above matter and competent to swear this affidavit.
+
+${formData.statements || '2. [Add your statements here, numbered]'}
+
+I state that the contents of this affidavit are true and correct to the best of my knowledge and belief. Nothing material has been concealed therein.
+
+DEPONENT
+${formData.deponent_name || '[Name]'}
+
+Verified at [City] on this ${today}
+
+NOTARY/OATH COMMISSIONER
+[Seal & Signature]
     `.trim();
   }
 

@@ -23,5 +23,6 @@
   {"text": "Makan malik ne bijli paani band kar diya", "urgency": "medium", "category": "property", "ipc_sections": ["Rent Control Act", "IPC 441"]},
   {"text": "School ne bache ko nikaala unjustly", "urgency": "medium", "category": "education", "ipc_sections": ["RTE Act", "Consumer Protection Act"]},
   {"text": "Medical negligence hua operation mein", "urgency": "high", "category": "medical", "ipc_sections": ["IPC 304A", "Consumer Protection Act", "Indian Medical Council Act"]},
-  {"text": "Accident hua road par insurance nahi de raha", "urgency": "medium", "category": "insurance", "ipc_sections": ["Motor Vehicles Act 166", "Insurance Act"]}
+  {"text": "Accident hua road par insurance nahi de raha", "urgency": "medium", "category": "insurance", "ipc_sections": ["Motor Vehicles Act 166", "Insurance Act"]},
+  {"text": "Mera purse chori ho gaya", "urgency": "high", "category": "criminal", "ipc_sections": ["IPC 378", "IPC 379", "CrPC 154"]}
 ]

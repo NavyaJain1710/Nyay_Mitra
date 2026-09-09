@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Optional
 import os
 
-from routers import chat, documents, admin, auth
+from routers import chat, documents, admin, auth, users
 from services.chat_service import ChatService
 from services.connection_manager import ConnectionManager
 from models.schemas import ChatRequest, ChatResponse
@@ -47,6 +47,7 @@ app.include_router(chat.router, prefix="/api", tags=["Chat"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(users.router, prefix="/api/users", tags=["Users"])
 
 
 @app.get("/")
@@ -76,6 +77,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
             data = json.loads(raw)
             message = data.get("message", "")
             language = data.get("language", "hinglish")
+            user_email = data.get("user_email")
 
             if not message.strip():
                 continue
@@ -91,6 +93,7 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     message=message,
                     session_id=session_id,
                     language=language,
+                    user_email=user_email,
                 )
                 await connection_manager.send_to_session(session_id, {
                     "type": "message",
@@ -123,11 +126,23 @@ async def websocket_admin(websocket: WebSocket, admin_id: str):
             # Broadcast admin message to relevant user session
             target_session = data.get("target_session_id")
             if target_session:
+                msg_content = data.get("message")
+                ts = datetime.utcnow().isoformat()
+                
+                # Save to history
+                if target_session in chat_service.CHAT_SESSIONS:
+                    chat_service.CHAT_SESSIONS[target_session].append({
+                        "role": "admin",
+                        "content": msg_content,
+                        "timestamp": ts,
+                        "from": "admin"
+                    })
+                    
                 await connection_manager.send_to_session(target_session, {
                     "type": "admin_message",
-                    "content": data.get("message"),
+                    "content": msg_content,
                     "from": "admin",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": ts,
                 })
     except WebSocketDisconnect:
         connection_manager.disconnect(f"admin_{admin_id}")

@@ -64,8 +64,8 @@ $frontendJob = Start-Job -ScriptBlock {
 
 # ── Admin Dashboard ───────────────────────────────────────────
 Write-Host "`n[3/3] Admin Dashboard ready" -ForegroundColor Cyan
-Write-Host "Open: $(Join-Path $scriptDir 'admin-dashboard\index.html') in your browser" -ForegroundColor Green
-Write-Host "Or run: npx live-server admin-dashboard --port=5500" -ForegroundColor Yellow
+Write-Host "Open: http://localhost:8001 in your browser" -ForegroundColor Green
+Write-Host "Or run: python serve_admin.py" -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
@@ -74,7 +74,7 @@ Write-Host "==========================================" -ForegroundColor Green
 Write-Host "  🌐 App:     http://localhost:3000"
 Write-Host "  🔧 API:     http://localhost:8000"
 Write-Host "  📚 API Docs:http://localhost:8000/docs"
-Write-Host "  👮 Admin:   admin-dashboard/index.html"
+Write-Host "  👮 Admin:   http://localhost:8001"
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Press Ctrl+C to stop all services"

@@ -1,28 +1,34 @@
 services:
   - type: web
     name: nyaymitra-backend
-    env: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    env: python
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: nyaymitra-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: nyaymitra-redis
-          property: connectionString
-      - key: SECRET_KEY
-        generateValue: true
-      - key: ENVIRONMENT
-        value: production
-  - type: redis
-    name: nyaymitra-redis
-    ipAllowList: [] # only allow internal connections
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: OPENAI_API_KEY
+        sync: false
 
-databases:
-  - name: nyaymitra-db
-    databaseName: nyaymitra
-    user: nyaymitra
+  - type: web
+    name: nyaymitra-frontend
+    env: static
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishPath: "./frontend/build"
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: nyaymitra-backend
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: REACT_APP_ADMIN_URL
+        fromService:
+          type: web
+          name: nyaymitra-admin
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: nyaymitra-admin
+    env: static
+    buildCommand: "echo 'No build required for admin dashboard'"
+    staticPublishPath: "./admin-dashboard"
