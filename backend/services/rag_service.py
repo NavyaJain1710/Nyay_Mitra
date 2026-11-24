@@ -1,19 +1,19 @@
 import json
 import logging
 import os
-import faiss
-import numpy as np
 from typing import List, Dict, Any
-from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
 class RAGService:
+    """
+    Memory-efficient RAG Service optimized for cloud environments (Render Free Tier 512MB RAM).
+    Uses TF-IDF vector similarity over the legal knowledge base with zero heavy PyTorch overhead.
+    """
     def __init__(self, data_path: str = None):
-        logger.info("Initializing RAGService...")
-        # Load a small, fast model for embeddings
-        self.encoder = SentenceTransformer('all-MiniLM-L6-v2')
-        self.index = None
+        logger.info("Initializing RAGService (Lightweight TF-IDF mode)...")
+        self.vectorizer = None
+        self.tfidf_matrix = None
         self.documents = []
         
         # Determine data path (assuming we are in backend/services)
@@ -26,7 +26,6 @@ class RAGService:
     def load_data(self, data_path: str):
         if not os.path.exists(data_path):
             logger.warning(f"Data file not found: {data_path}. RAG will have empty context.")
-            self.index = faiss.IndexFlatL2(self.encoder.get_sentence_embedding_dimension())
             return
             
         try:
@@ -42,30 +41,26 @@ class RAGService:
                 texts.append(text)
                 
             if texts:
-                embeddings = self.encoder.encode(texts)
-                self.index = faiss.IndexFlatL2(embeddings.shape[1])
-                self.index.add(np.array(embeddings).astype("float32"))
-                logger.info(f"Loaded {len(texts)} documents into RAG index.")
-            else:
-                self.index = faiss.IndexFlatL2(self.encoder.get_sentence_embedding_dimension())
-                
+                from sklearn.feature_extraction.text import TfidfVectorizer
+                self.vectorizer = TfidfVectorizer(ngram_range=(1, 2), stop_words=None)
+                self.tfidf_matrix = self.vectorizer.fit_transform(texts)
+                logger.info(f"Loaded {len(texts)} documents into TF-IDF RAG index.")
         except Exception as e:
             logger.error(f"Error loading RAG data: {e}")
-            self.index = faiss.IndexFlatL2(self.encoder.get_sentence_embedding_dimension())
 
     def get_context(self, query: str, top_k: int = 3) -> str:
-        if self.index is None or not self.documents:
+        if self.vectorizer is None or self.tfidf_matrix is None or not self.documents:
             return ""
             
         try:
-            query_vector = self.encoder.encode([query])
-            distances, indices = self.index.search(np.array(query_vector).astype("float32"), min(top_k, len(self.documents)))
+            from sklearn.metrics.pairwise import cosine_similarity
+            query_vector = self.vectorizer.transform([query])
+            similarities = cosine_similarity(query_vector, self.tfidf_matrix)[0]
             
-            results = []
-            for idx in indices[0]:
-                if 0 <= idx < len(self.documents):
-                    results.append(self.documents[idx])
-                    
+            # Get top indices with positive similarity
+            top_indices = similarities.argsort()[::-1][:top_k]
+            results = [self.documents[idx] for idx in top_indices if similarities[idx] > 0.05]
+            
             return "\n\n".join(results)
         except Exception as e:
             logger.error(f"Error searching RAG index: {e}")

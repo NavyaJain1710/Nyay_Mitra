@@ -11,11 +11,7 @@ sqlalchemy[asyncio]==2.0.28
 alembic==1.13.1
 redis==5.0.2
 
-# AI / ML
-torch==2.2.1
-transformers==4.38.2
-sentence-transformers==2.6.0
-faiss-cpu==1.8.0
+# AI / ML (Lightweight, low memory for cloud tiers)
 numpy==1.26.4
 scikit-learn==1.5.0
 
