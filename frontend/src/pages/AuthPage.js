@@ -40,7 +40,8 @@ export default function AuthPage() {
       
       if (isAdmin) {
         const ADMIN_URL = process.env.REACT_APP_ADMIN_URL || 'http://localhost:8001';
-        window.location.href = ADMIN_URL; // Admin Dashboard
+        const targetUrl = ADMIN_URL.includes('?') ? `${ADMIN_URL}&api=${encodeURIComponent(API_URL)}` : `${ADMIN_URL}?api=${encodeURIComponent(API_URL)}`;
+        window.location.href = targetUrl; // Admin Dashboard
       } else {
         navigate('/dashboard'); // User Dashboard
       }

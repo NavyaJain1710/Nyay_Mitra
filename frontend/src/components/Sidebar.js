@@ -127,9 +127,18 @@ export default function Sidebar({ isOpen, chatHistory, language, onLanguageChang
         <div style={styles.section}>
           <button onClick={() => onNavigate('/documents')} style={styles.navBtn}>📑 Document Center</button>
           <button onClick={() => onNavigate('/')} style={styles.navBtn}>🏠 Home</button>
-          <a href={window.location.hostname ? `http://${window.location.hostname}:8001` : 'http://localhost:8001'} target="_blank" rel="noreferrer" style={{ ...styles.navBtn, display: 'block', textDecoration: 'none', color: '#9ca3af' }}>
-            🛡️ Admin Dashboard
-          </a>
+          {(() => {
+            const adminBase = process.env.REACT_APP_ADMIN_URL || (window.location.hostname ? `http://${window.location.hostname}:8001` : 'http://localhost:8001');
+            const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+            const adminUrl = adminBase.includes('?') 
+              ? `${adminBase}&api=${encodeURIComponent(apiBase)}` 
+              : `${adminBase}?api=${encodeURIComponent(apiBase)}`;
+            return (
+              <a href={adminUrl} target="_blank" rel="noreferrer" style={{ ...styles.navBtn, display: 'block', textDecoration: 'none', color: '#9ca3af' }}>
+                🛡️ Admin Dashboard
+              </a>
+            );
+          })()}
         </div>
 
         {/* Emergency */}

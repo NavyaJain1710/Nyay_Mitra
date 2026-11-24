@@ -51,7 +51,11 @@ export default function LandingPage() {
           <div style={styles.navLinks}>
             <a href="#features" style={styles.navLink}>Features</a>
             <a href="#about" style={styles.navLink}>About</a>
-            <a href={process.env.REACT_APP_ADMIN_URL || "http://localhost:8001"} target="_blank" rel="noopener noreferrer" style={styles.navLink}>Admin</a>
+            <a href={(() => {
+              const aUrl = process.env.REACT_APP_ADMIN_URL || "http://localhost:8001";
+              const bUrl = process.env.REACT_APP_API_URL || "http://localhost:8000";
+              return aUrl.includes('?') ? `${aUrl}&api=${encodeURIComponent(bUrl)}` : `${aUrl}?api=${encodeURIComponent(bUrl)}`;
+            })()} target="_blank" rel="noopener noreferrer" style={styles.navLink}>Admin</a>
             <button onClick={() => {
               if (localStorage.getItem('token')) {
                 navigate('/dashboard');
