@@ -17,7 +17,7 @@ const DOC_TEMPLATES = [
   { id: 'affidavit', icon: '🗒️', name: 'Affidavit', desc: 'Sworn statement' },
 ];
 
-export default function Sidebar({ isOpen, chatHistory, language, onLanguageChange, languages, onNewChat, onNavigate, onGenerateDoc, onShowIPC, onShowTimeline, onShowPredictor, onPrint }) {
+export default function Sidebar({ isOpen, chatHistory, language, onLanguageChange, languages, onNewChat, onNavigate, onGenerateDoc, onShowIPC, onShowTimeline, onShowPredictor, onPrint, onSelectChat }) {
   if (!isOpen) return null;
 
   return (
@@ -104,18 +104,22 @@ export default function Sidebar({ isOpen, chatHistory, language, onLanguageChang
         <div style={styles.section}>
           <div style={styles.sectionLabel}>💬 Recent Chats</div>
           <div style={styles.historyList}>
-            {chatHistory.map((chat) => {
-              const tagStyle = TAG_COLORS[chat.tag] || TAG_COLORS.general;
-              return (
-                <div key={chat.id} style={styles.historyItem}>
-                  <div style={styles.historyTitle}>{chat.title}</div>
-                  <div style={styles.historyMeta}>
-                    <span style={{ ...styles.historyTag, background: tagStyle.bg, color: tagStyle.color, border: `1px solid ${tagStyle.border}` }}>{chat.tag}</span>
-                    <span style={styles.historyDate}>{chat.date}</span>
+            {(!chatHistory || chatHistory.length === 0) ? (
+              <div style={{ fontSize: 11, color: '#6b7280', padding: '6px 4px' }}>No recent chats yet</div>
+            ) : (
+              chatHistory.map((chat) => {
+                const tagStyle = TAG_COLORS[chat.tag] || TAG_COLORS.general;
+                return (
+                  <div key={chat.id} style={styles.historyItem} onClick={() => onSelectChat && onSelectChat(chat.id)} title="Open this consultation">
+                    <div style={styles.historyTitle}>{chat.title}</div>
+                    <div style={styles.historyMeta}>
+                      <span style={{ ...styles.historyTag, background: tagStyle.bg, color: tagStyle.color, border: `1px solid ${tagStyle.border}` }}>{chat.tag}</span>
+                      <span style={styles.historyDate}>{chat.date}</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 

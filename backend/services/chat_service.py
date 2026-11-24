@@ -4,23 +4,27 @@ Uses RAG pipeline with Indian legal corpus
 Falls back to rule-based responses when ML models not loaded
 """
 
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import re
 import asyncio
 import logging
-import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import httpx
 from dotenv import load_dotenv
+
+# Ensure backend/.env values are available regardless of working directory
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_env_path = os.path.join(_backend_dir, ".env")
+load_dotenv(_env_path)
+load_dotenv()
 
 from services.urgency_service import UrgencyClassifier
 from services.ipc_service import IPCTagger
 from services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
-
-# Ensure backend/.env values are available even when process env is minimal.
-load_dotenv()
 
 # In-memory session store (use Redis in production)
 CHAT_SESSIONS: Dict[str, List[Dict]] = {}
@@ -559,6 +563,15 @@ class ChatService:
         ]
         return any(phrase in msg for phrase in fault_phrases)
 
+    def _is_informational_query(self, message: str) -> bool:
+        msg = message.lower().strip()
+        info_keywords = [
+            "what is", "what are", "kya hai", "kya hota hai", "explain", "meaning of",
+            "define", "tell me about", "who is", "which act", "law regarding", "rules for",
+            "article", "constitution", "citizen", "citizenship", "human right", "fundamental right"
+        ]
+        return any(k in msg for k in info_keywords)
+
     async def _generate_openai_response(
         self,
         message: str,
@@ -571,15 +584,19 @@ class ChatService:
         if not self.openai_api_key:
             return None
 
-        history = CHAT_SESSIONS.get(session_id, [])[-6:]
+        history = CHAT_SESSIONS.get(session_id, [])[-4:]
         convo_messages = []
         for item in history:
             role = item.get("role")
             if role not in {"user", "assistant"}:
                 continue
+            # Keep past context concise to prevent exceeding TPM limits
+            c_text = item.get("content", "")
+            if len(c_text) > 400:
+                c_text = c_text[:400] + "..."
             convo_messages.append({
                 "role": role,
-                "content": item.get("content", ""),
+                "content": c_text,
             })
 
         fault_hint = ""
@@ -596,25 +613,24 @@ class ChatService:
         elif language == "hindi":
             language_hint = "CRITICAL: You MUST respond entirely in Hindi script (हिंदी)."
         else:
-            language_hint = f"CRITICAL: You MUST respond entirely in {language.capitalize()} language/script. Translate all legal advice and fallback text to {language.capitalize()}."
+            language_hint = f"CRITICAL: You MUST respond entirely in {language.capitalize()} language/script. Translate all legal advice to {language.capitalize()}."
         system_prompt = (
             "You are NyayMitra, an Indian legal guidance assistant.\n"
-            "You must strictly base your answers on the provided RAG context. Do not hallucinate external laws or facts.\n"
-            "Give practical, step-by-step legal help with relevant IPC/CrPC/MV Act sections where useful.\n"
-            "CRITICAL: For every single answer, you MUST explicitly include a section titled 'Approach' (or 'दृष्टिकोण') explaining step-by-step why and how you arrived at this conclusion based on the context.\n"
-            "Do not refuse with generic follow-up loops. Give immediate actionable advice first, then ask only 1-2 critical follow-up questions if necessary.\n"
-            "If user asks fault/liability, give a preliminary assessment using available facts and explain uncertainty.\n"
+            "Provide accurate, clear, and practical legal explanations and guidance under Indian and constitutional law (e.g. Constitution of India, Citizenship Act, Human Rights Act, IPC/BNS, CrPC/BNSS, Consumer Protection Act, etc.).\n"
+            "If the user asks an informational question (e.g. what is an act, citizen rights, legal definitions, provisions), explain it clearly and helpfully with relevant laws/articles.\n"
+            "If the user describes a dispute, incident, or problem, give step-by-step practical legal remedies with applicable sections.\n"
+            "CRITICAL: For every single answer, include a short section titled 'Approach' (or 'दृष्टिकोण') explaining briefly how you arrived at this explanation.\n"
+            "Do not refuse with generic follow-up loops. Answer the user's specific question directly.\n"
             "Do not claim to be a lawyer. Add a one-line caution that this is legal information, not final legal advice.\n"
             f"{language_hint}\n"
             f"{fault_hint}"
         )
 
-        user_prompt = (
-            f"User message: {message}\n\n"
-            f"RAG Context (Use strictly to answer):\n{rag_context}\n\n"
-            f"Fallback guidance (use if relevant): {fallback_response}\n"
-            f"Known relevant sections from classifier: {', '.join(matched_sections) if matched_sections else 'None'}"
-        )
+        user_prompt = f"User question: {message}"
+        if rag_context:
+            user_prompt += f"\n\nReference Indian Legal Context:\n{rag_context}"
+        if matched_sections:
+            user_prompt += f"\nRelevant sections: {', '.join(matched_sections)}"
 
         payload = {
             "model": self.openai_model,
@@ -631,20 +647,35 @@ class ChatService:
             "Content-Type": "application/json",
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=18.0) as client:
-                response = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers=headers,
-                    json=payload,
-                )
-                response.raise_for_status()
-                data = response.json()
-                content = data["choices"][0]["message"]["content"].strip()
-                return content or None
-        except Exception as exc:
-            logger.warning("OpenAI response failed; falling back to rule-based. error=%s", exc)
-            return None
+        models_to_try = [self.openai_model]
+        for candidate in ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "allam-2-7b"]:
+            if candidate not in models_to_try:
+                models_to_try.append(candidate)
+
+        async with httpx.AsyncClient(timeout=14.0) as client:
+            for model_name in models_to_try:
+                payload["model"] = model_name
+                try:
+                    response = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        content = data["choices"][0]["message"]["content"].strip()
+                        if content:
+                            return content
+                    elif response.status_code == 429:
+                        logger.warning("Groq model %s hit 429 rate limit; trying next candidate", model_name)
+                        continue
+                    else:
+                        logger.warning("Groq model %s returned status %s: %s", model_name, response.status_code, response.text[:100])
+                except Exception as exc:
+                    logger.warning("Groq model %s failed: %s", model_name, exc)
+                    continue
+
+        return None
 
     def _get_response_text(self, match: Dict, language: str) -> str:
         if language == "english":
@@ -685,10 +716,37 @@ class ChatService:
             bool(self.openai_api_key),
         )
 
+        is_info = self._is_informational_query(message)
         if match:
             response_text = self._get_response_text(match, language)
             ipc_sections = list(set(ipc_sections + match.get("ipc_sections", [])))
             urgency = match.get("urgency", urgency_result.get("urgency", "low"))
+        elif is_info:
+            if language == "english":
+                response_text = (
+                    f"## Legal Overview & Rights\n\n"
+                    f"Regarding your query on **'{message.strip()}'**:\n\n"
+                    f"In India, citizen rights, citizenship, and human protections are primarily governed under:\n"
+                    f"- **Citizenship Act, 1955:** Regulates acquisition, determination, and legal status of Indian citizens.\n"
+                    f"- **Protection of Human Rights Act, 1993:** Protects rights relating to life, liberty, equality, and dignity (empowers NHRC and SHRC).\n"
+                    f"- **Constitution of India (Articles 14, 19, 21):** Guarantees fundamental rights, equality before law, and personal liberty to all persons.\n\n"
+                    f"If you are seeking advice on a specific dispute, document, or application, please let me know and I will provide the exact legal steps.\n\n"
+                    f"---\n*Approach: Provided an informative legal overview of Indian citizenship and human rights frameworks.*"
+                )
+                ipc_sections = ["Citizenship Act 1955", "Human Rights Act 1993", "Article 21"]
+            else:
+                response_text = (
+                    f"## कानूनी जानकारी और अधिकार\n\n"
+                    f"आपके प्रश्न **'{message.strip()}'** के संबंध में:\n\n"
+                    f"भारत में नागरिक अधिकार, नागरिकता और मानवाधिकार मुख्य रूप से इन कानूनों के तहत आते हैं:\n"
+                    f"- **Citizenship Act, 1955 (नागरिकता अधिनियम):** भारतीय नागरिकता प्राप्त करने, तय करने और स्थिति के नियम।\n"
+                    f"- **Protection of Human Rights Act, 1993 (मानवाधिकार संरक्षण अधिनियम):** जीवन, स्वतंत्रता, समानता और गरिमा के अधिकारों की रक्षा (NHRC/SHRC)।\n"
+                    f"- **भारतीय संविधान (अनुच्छेद 14, 19, 21):** मौलिक अधिकार, कानून के समक्ष समानता और जीवन की स्वतंत्रता।\n\n"
+                    f"यदि आपका प्रश्न किसी विशेष विवाद या दस्तावेज़ से संबंधित है, तो कृपया बताएं ताकि सटीक कानूनी धाराएं बताई जा सकें।\n\n"
+                    f"---\n*दृष्टिकोण: नागरिकता और मानवाधिकार से जुड़े कानूनों की जानकारी दी गई है।*"
+                )
+                ipc_sections = ["Citizenship Act 1955", "Constitution Article 21"]
+            urgency = "low"
         else:
             repeated_default = self._recent_default_prompts(session_id) >= 1
             if repeated_default or looks_detailed or asks_advice or asks_fault:

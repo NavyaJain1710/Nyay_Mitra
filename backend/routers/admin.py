@@ -3,8 +3,10 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 import logging
+import os
 from datetime import datetime
 from collections import Counter
+import httpx
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -176,65 +178,128 @@ async def get_stats():
     urgent = [s for s in sessions_list if s.get("urgency") == "high"]
     resolved_today = len([r for r in RESOLVED_SESSIONS if "resolved_at" in r and datetime.fromisoformat(r["resolved_at"]).date() == datetime.utcnow().date()])
     tag_counts = Counter(s["tag"] for s in sessions_list)
-    top_categories = [{"category": tag, "count": count} for tag, count in tag_counts.most_common(6)]
-    if not sessions_list:
+    
+    if sessions_list:
+        top_categories = [{"category": tag, "count": count} for tag, count in tag_counts.most_common(6)]
+        urgency_breakdown = {
+            "high": len([s for s in sessions_list if s["urgency"] == "high"]),
+            "medium": len([s for s in sessions_list if s["urgency"] == "medium"]),
+            "low": len([s for s in sessions_list if s["urgency"] == "low"]),
+        }
+        lang_counts = Counter(s.get("language", "hinglish").capitalize() for s in sessions_list)
+        language_breakdown = dict(lang_counts.most_common(5))
+        total_cases = len(sessions_list) + len(RESOLVED_SESSIONS)
+        active_count = len(active)
+        urgent_count = len(urgent)
+    else:
         top_categories = [
             {"category": "property", "count": 23}, {"category": "domestic", "count": 18},
             {"category": "cyber", "count": 12}, {"category": "labour", "count": 9},
             {"category": "rti", "count": 7}, {"category": "civil", "count": 5},
         ]
+        urgency_breakdown = {"high": 3, "medium": 5, "low": 4}
+        language_breakdown = {"Hinglish": 42, "Hindi": 28, "English": 15, "Tamil": 8, "Other": 7}
+        total_cases = 1247
+        active_count = 12
+        urgent_count = 3
+
     return {
-        "active_sessions": len(active) or 12,
-        "resolved_today": resolved_today or 47,
-        "urgent_pending": len(urgent) or 3,
-        "total_cases": len(sessions_list) + len(RESOLVED_SESSIONS) or 1247,
+        "active_sessions": active_count,
+        "resolved_today": resolved_today,
+        "urgent_pending": urgent_count,
+        "total_cases": total_cases,
         "avg_resolution_time": "18 minutes",
         "top_categories": top_categories,
         "weekly_docs": [12, 19, 8, 24, 17, 31, 22],
-        "urgency_breakdown": {
-            "high": len([s for s in sessions_list if s["urgency"] == "high"]) or 3,
-            "medium": len([s for s in sessions_list if s["urgency"] == "medium"]) or 5,
-            "low": len([s for s in sessions_list if s["urgency"] == "low"]) or 4,
-        },
-        "language_breakdown": {"Hinglish": 42, "Hindi": 28, "English": 15, "Tamil": 8, "Other": 7},
+        "urgency_breakdown": urgency_breakdown,
+        "language_breakdown": language_breakdown,
         "accuracy_metrics": {"ipc_tagging": 94, "urgency_detection": 91, "outcome_prediction": 87, "document_generation": 98},
-        "weekly_sessions": [8, 14, 11, 19, 23, 17, len(sessions_list) or 12],
-        "weekly_resolved": [6, 12, 9, 15, 18, 13, len(RESOLVED_SESSIONS) or 8],
+        "weekly_sessions": [8, 14, 11, 19, 23, 17, len(sessions_list) if sessions_list else 12],
+        "weekly_resolved": [6, 12, 9, 15, 18, 13, len(RESOLVED_SESSIONS) if sessions_list else 8],
         "weekly_labels": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"],
     }
 
 
 @router.post("/reply")
 async def send_admin_reply(session_id: str, message: str, admin_id: str = "admin"):
+    chat_sessions = get_chat_sessions()
+    ts = datetime.utcnow().isoformat()
+    if session_id not in chat_sessions:
+        chat_sessions[session_id] = []
+    
+    # Persist admin reply in chat history
+    chat_sessions[session_id].append({
+        "role": "admin",
+        "content": message,
+        "timestamp": ts,
+        "from": "admin",
+        "admin_id": admin_id,
+    })
+    
     try:
         conn_mgr = get_connection_manager()
         await conn_mgr.send_to_session(session_id, {
-            "type": "admin_message", "content": message,
-            "from": "admin", "admin_id": admin_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "type": "admin_message",
+            "content": message,
+            "from": "admin",
+            "admin_id": admin_id,
+            "timestamp": ts,
         })
         sent = True
     except Exception as e:
         logger.warning(f"WS push failed: {e}")
         sent = False
-    return {"sent": sent, "session_id": session_id, "message": message, "admin_id": admin_id, "timestamp": datetime.utcnow().isoformat()}
+    return {"sent": sent, "session_id": session_id, "message": message, "admin_id": admin_id, "timestamp": ts}
 
 
 @router.post("/ai-suggest/{session_id}")
 async def get_ai_suggestion(session_id: str):
     chat_sessions = get_chat_sessions()
     messages = chat_sessions.get(session_id, [])
-    if not messages:
-        return {"session_id": session_id, "suggestion": "Aapka case review kar liya hai. Kya aap thoda aur batayenge apni situation ke baare mein?", "ipc_sections": [], "confidence": 0.87}
+    if not messages and session_id in DEMO_MESSAGES:
+        messages = DEMO_MESSAGES[session_id]
+        
     all_ipc = list({sec for m in messages for sec in m.get("ipc_sections", [])})[:4]
     tag = _infer_tag(messages)
-    suggestions = {
-        "domestic": "Aapki safety sabse zaroori hai. 1091 (Mahila Helpline) abhi call karein. Main Protection Order draft karne mein help kar sakta hoon.",
-        "property": "Tahsildar office jaayein aur Encumbrance Certificate lein. DLSA se free vakeel milega - 15100 call karein.",
-        "cyber": "Bank se complaint number lo aur cybercrime.gov.in pe darj karo. 72 ghante mein FIR zaroori hai.",
-        "criminal": "Nearest police station jaayein aur Zero FIR darj karein. SP office contact karein agar refuse karein.",
-        "labour": "Labour Commissioner office mein complaint karein. 30 din ka notice period legally required hai.",
-        "rti": "RTI application Section 6 ke under likhen. Rs. 10 ke saath bhejein. 30 din mein jawab milna chahiye.",
-    }
-    suggestion = suggestions.get(tag, "Aapka case dekha hai. Is baare mein aur jankari chahiye. Kya main legal options explain karoon?")
-    return {"session_id": session_id, "suggestion": suggestion, "ipc_sections": all_ipc, "confidence": 0.87}
+    
+    # Try dynamic LLM generation if API key is configured
+    openai_key = os.getenv("OPENAI_API_KEY")
+    openai_model = os.getenv("OPENAI_MODEL", "qwen/qwen3.8-27b")
+    
+    suggestion = None
+    if openai_key and messages:
+        user_msgs = [m["content"] for m in messages if m["role"] == "user"]
+        last_user = user_msgs[-1] if user_msgs else ""
+        if last_user:
+            try:
+                prompt = (
+                    "You are a senior legal aid officer in India reviewing this citizen's case. "
+                    "Write a 2-3 sentence reassuring and actionable guidance reply in Hinglish/English. "
+                    f"User situation: {last_user}\nCategory: {tag}\nRelevant sections: {', '.join(all_ipc)}"
+                )
+                async with httpx.AsyncClient(timeout=8.0) as client:
+                    resp = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"},
+                        json={"model": openai_model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.2}
+                    )
+                    if resp.status_code == 200:
+                        suggestion = resp.json()["choices"][0]["message"]["content"].strip()
+            except Exception as e:
+                logger.warning(f"Dynamic AI suggest failed: {e}")
+                
+    if not suggestion:
+        user_msgs = [m["content"] for m in messages if m["role"] == "user"]
+        last_user = user_msgs[-1] if user_msgs else ""
+        suggestions = {
+            "domestic": "Aapki safety sabse zaroori hai. 1091 (Mahila Helpline) abhi call karein. Main Protection Order draft karne mein help kar sakta hoon.",
+            "property": "Tahsildar office jaayein aur Encumbrance Certificate lein. DLSA se free vakeel milega - 15100 call karein.",
+            "cyber": "Bank se complaint number lo aur cybercrime.gov.in pe darj karo. 72 ghante mein FIR zaroori hai.",
+            "criminal": "Nearest police station jaayein aur Zero FIR darj karein. SP office contact karein agar refuse karein.",
+            "labour": "Labour Commissioner office mein complaint karein. 30 din ka notice period legally required hai.",
+            "rti": "RTI application Section 6 ke under likhen. Rs. 10 ke saath bhejein. 30 din mein jawab milna chahiye.",
+        }
+        fallback_msg = suggestions.get(tag, "Aapka case review kar liya hai. Kya aap is ghatna ke baare mein thoda aur vivran de sakte hain?")
+        suggestion = fallback_msg
+
+    return {"session_id": session_id, "suggestion": suggestion, "ipc_sections": all_ipc, "confidence": 0.90}

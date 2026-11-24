@@ -209,10 +209,28 @@ In details ke saath main **accurate legal guidance** de sakta hoon — IPC secti
 const speakText = (text, langCode) => {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const cleaned = text.replace(/\*\*/g, '').replace(/#{1,3} /g, '').replace(/\*/g, '').substring(0, 500);
+  if (window.speechSynthesis.paused) {
+    window.speechSynthesis.resume();
+  }
+  const cleaned = (text || '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/\*\*/g, '')
+    .replace(/#{1,6} /g, '')
+    .replace(/\*/g, '')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .substring(0, 600);
+
   const utterance = new SpeechSynthesisUtterance(cleaned);
   utterance.lang = langCode || 'hi-IN';
-  utterance.rate = 0.9;
+  utterance.rate = 0.95;
+
+  if (window.speechSynthesis.getVoices) {
+    const voices = window.speechSynthesis.getVoices();
+    const prefix = (langCode || 'hi-IN').split('-')[0];
+    const match = voices.find(v => v.lang && v.lang.toLowerCase().startsWith(prefix.toLowerCase()));
+    if (match) utterance.voice = match;
+  }
+
   window.speechSynthesis.speak(utterance);
 };
 
@@ -221,7 +239,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([SYSTEM_GREETING]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId] = useState(() => {
+  const [sessionId, setSessionId] = useState(() => {
     const res = localStorage.getItem('resume_session');
     if (res) {
       localStorage.removeItem('resume_session');
@@ -231,10 +249,14 @@ export default function ChatPage() {
   });
   const [language, setLanguage] = useState('hinglish');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [chatHistory, setChatHistory] = useState([
-    { id: '1', title: 'Landlord dispute help', date: '2 hours ago', tag: 'property' },
-    { id: '2', title: 'FIR filing query', date: 'Yesterday', tag: 'criminal' },
-  ]);
+  const [chatHistory, setChatHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('nyaymitra_user_sessions');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [docModal, setDocModal] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [showIPCPanel, setShowIPCPanel] = useState(false);
@@ -296,11 +318,53 @@ export default function ChatPage() {
     return () => wsRef.current?.close();
   }, [sessionId, ttsEnabled, currentLang.speechCode]);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    let isMounted = true;
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/chat/history/${sessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.messages && data.messages.length > 0) {
+            const mapped = data.messages.map((m, idx) => ({
+              id: `${sessionId}_${idx}`,
+              role: m.role === 'ai' ? 'assistant' : m.role,
+              content: m.content,
+              timestamp: new Date(m.timestamp || Date.now()),
+              ipcSections: m.ipc_sections || [],
+              urgency: m.urgency,
+              documentLink: m.document_link,
+              legalRights: m.legal_rights || [],
+              isAdminMessage: m.role === 'admin',
+            }));
+            setMessages(mapped);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load session history:', e);
+      }
+    };
+    fetchHistory();
+    return () => { isMounted = false; };
+  }, [sessionId]);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
   useEffect(scrollToBottom, [messages, isTyping, scrollToBottom]);
+
+  const inferTagFromText = (txt) => {
+    const l = (txt || '').toLowerCase();
+    if (l.includes('fir') || l.includes('police') || l.includes('arrest') || l.includes('crime')) return 'criminal';
+    if (l.includes('zameen') || l.includes('property') || l.includes('rent') || l.includes('land')) return 'property';
+    if (l.includes('cyber') || l.includes('fraud') || l.includes('otp') || l.includes('bank')) return 'cyber';
+    if (l.includes('job') || l.includes('salary') || l.includes('fired') || l.includes('labour')) return 'labour';
+    if (l.includes('domestic') || l.includes('maar') || l.includes('violence') || l.includes('husband')) return 'domestic';
+    if (l.includes('rti')) return 'rti';
+    return 'general';
+  };
 
   const sendMessage = useCallback(async (text) => {
     if (!text.trim()) return;
@@ -308,6 +372,16 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
+
+    // Update dynamic chat history
+    setChatHistory(prev => {
+      const title = text.length > 28 ? text.substring(0, 28) + '...' : text;
+      const tag = inferTagFromText(text);
+      const filtered = prev.filter(c => c.id !== sessionId);
+      const updated = [{ id: sessionId, title, date: 'Just now', tag }, ...filtered].slice(0, 15);
+      try { localStorage.setItem('nyaymitra_user_sessions', JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
 
     const distressKeywords = ['maar', 'beat', 'bachao', 'urgent', 'emergency', 'please help', 'dar raha', 'afraid', 'scared', 'violence', 'threatened', 'dhama'];
     const isDistress = distressKeywords.some(kw => text.toLowerCase().includes(kw));
@@ -340,16 +414,14 @@ export default function ChatPage() {
         };
         setMessages(prev => [...prev, msg]);
         if (ttsEnabled) speakText(data.response, currentLang.speechCode);
-      } catch {
+      } catch (err) {
         setIsTyping(false);
-        const mockResponse = getMockResponse(text);
         const msg = {
-          id: Date.now().toString(), role: 'assistant', content: mockResponse.content,
-          timestamp: new Date(), ipcSections: mockResponse.ipcSections || [],
-          urgency: mockResponse.urgency || 'low', legalRights: mockResponse.legalRights || [],
+          id: Date.now().toString(), role: 'assistant', content: `Network/Backend Error: ${err.message}. Please check if backend is running on ${API_BASE}.`,
+          timestamp: new Date(), ipcSections: [],
+          urgency: 'low', legalRights: [],
         };
         setMessages(prev => [...prev, msg]);
-        if (ttsEnabled) speakText(mockResponse.content, currentLang.speechCode);
       }
     }
   }, [language, sessionId, ttsEnabled, currentLang.speechCode]);
@@ -385,8 +457,12 @@ export default function ChatPage() {
         onLanguageChange={setLanguage}
         languages={LANGUAGES}
         onNewChat={() => {
+          const newId = `session_${Date.now()}`;
+          setSessionId(newId);
           setMessages([SYSTEM_GREETING]);
-          setChatHistory(prev => [{ id: Date.now().toString(), title: 'New consultation', date: 'Just now', tag: 'general' }, ...prev]);
+        }}
+        onSelectChat={(id) => {
+          setSessionId(id);
         }}
         onNavigate={navigate}
         onGenerateDoc={setDocModal}

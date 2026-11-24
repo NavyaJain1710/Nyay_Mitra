@@ -3,6 +3,9 @@ NyayMitra Backend - FastAPI Application
 AI-powered legal assistant for India
 """
 
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -32,8 +35,8 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://localhost:5500", "http://127.0.0.1:5500", "null", "*"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -103,6 +106,14 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
                     "document_link": response.get("document_link"),
                     "timestamp": datetime.utcnow().isoformat(),
                 })
+
+                # Notify connected admin dashboards of active session update
+                for cid in connection_manager.get_active_sessions():
+                    if cid.startswith("admin_"):
+                        await connection_manager.send_to_session(cid, {
+                            "type": "new_session",
+                            "session_id": session_id,
+                        })
             except Exception as e:
                 logger.error(f"Chat error: {e}")
                 await connection_manager.send_to_session(session_id, {

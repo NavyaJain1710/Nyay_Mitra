@@ -28,11 +28,10 @@ Set-Location $backendDir
 if (-not (Test-Path "venv")) {
     Write-Host "Creating virtual environment..."
     python -m venv venv
+    & ".\venv\Scripts\Activate.ps1"
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
 }
-
-& ".\venv\Scripts\Activate.ps1"
-python -m pip install --upgrade pip
-pip install -r requirements.txt
 
 # Copy .env if missing
 if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
@@ -41,8 +40,8 @@ if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
 }
 
 Write-Host "Backend starting on http://localhost:8000" -ForegroundColor Green
-$backendJob = Start-Job -ScriptBlock {
-    uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+$backendJob = Start-Job -WorkingDirectory $backendDir -ScriptBlock {
+    & ".\venv\Scripts\python.exe" -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 }
 
 Start-Sleep 2
@@ -58,7 +57,7 @@ if (-not (Test-Path "node_modules")) {
 }
 
 Write-Host "Frontend starting on http://localhost:3000" -ForegroundColor Green
-$frontendJob = Start-Job -ScriptBlock {
+$frontendJob = Start-Job -WorkingDirectory $frontendDir -ScriptBlock {
     npm start
 }
 
@@ -66,6 +65,9 @@ $frontendJob = Start-Job -ScriptBlock {
 Write-Host "`n[3/3] Admin Dashboard ready" -ForegroundColor Cyan
 Write-Host "Open: http://localhost:8001 in your browser" -ForegroundColor Green
 Write-Host "Or run: python serve_admin.py" -ForegroundColor Yellow
+$adminJob = Start-Job -WorkingDirectory $scriptDir -ScriptBlock {
+    python serve_admin.py
+}
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
@@ -81,9 +83,9 @@ Write-Host "Press Ctrl+C to stop all services"
 
 # Wait for jobs
 try {
-    Wait-Job $backendJob, $frontendJob
+    Wait-Job $backendJob, $frontendJob, $adminJob
 } catch {
     Write-Host "Stopping..."
-    Stop-Job $backendJob, $frontendJob
-    Remove-Job $backendJob, $frontendJob
+    Stop-Job $backendJob, $frontendJob, $adminJob
+    Remove-Job $backendJob, $frontendJob, $adminJob
 }

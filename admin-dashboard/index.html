@@ -390,10 +390,23 @@
 
 <script>
 // ── CONFIG ───────────────────────────────────────────────────
-const API_HOST = window.location.hostname || 'localhost';
-const API_PORT = window.location.port ? (parseInt(window.location.port) - 1) : 8000; // Admin on 8001, backend on 8000
-const API_BASE = `http://${API_HOST}:${API_PORT}/api/admin`;
-const WS_BASE = `ws://${API_HOST}:${API_PORT}/ws/admin/admin_001`;
+const urlParams = new URLSearchParams(window.location.search);
+const customApi = urlParams.get('api');
+let API_BASE, WS_BASE;
+
+if (customApi) {
+  API_BASE = `${customApi.replace(/\/$/, '')}/api/admin`;
+  WS_BASE = `${customApi.replace('http://', 'ws://').replace('https://', 'wss://').replace(/\/$/, '')}/ws/admin/admin_001`;
+} else if (window.location.hostname && window.location.hostname.includes('onrender.com')) {
+  const backendHost = window.location.hostname.replace('nyaymitra-admin', 'nyaymitra-backend');
+  API_BASE = `https://${backendHost}/api/admin`;
+  WS_BASE = `wss://${backendHost}/ws/admin/admin_001`;
+} else {
+  const host = window.location.hostname || 'localhost';
+  const port = urlParams.get('port') || '8000';
+  API_BASE = `http://${host}:${port}/api/admin`;
+  WS_BASE = `ws://${host}:${port}/ws/admin/admin_001`;
+}
 let allSessions = [];
 let activeSession = null;
 let currentSuggestion = '';

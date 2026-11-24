@@ -17,6 +17,16 @@ async def chat(request: ChatRequest):
             session_id=request.session_id,
             language=request.language,
         )
+        try:
+            from main import connection_manager
+            for cid in connection_manager.get_active_sessions():
+                if cid.startswith("admin_"):
+                    await connection_manager.send_to_session(cid, {
+                        "type": "new_session",
+                        "session_id": request.session_id,
+                    })
+        except Exception:
+            pass
         return ChatResponse(
             response=result["response"],
             session_id=request.session_id,

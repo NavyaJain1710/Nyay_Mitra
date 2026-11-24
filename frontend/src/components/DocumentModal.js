@@ -293,17 +293,43 @@ export default function DocumentModal({ docType, onClose, sessionId }) {
   const [formData, setFormData] = useState({});
   const [generated, setGenerated] = useState(false);
   const [docContent, setDocContent] = useState('');
+  const [generating, setGenerating] = useState(false);
 
   const form = DOC_FORMS[docType] || DOC_FORMS.fir;
+  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
   const handleChange = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/documents/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doc_type: docType,
+          form_data: formData,
+          language: 'hindi',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.content) {
+          setDocContent(data.content);
+          setGenerated(true);
+          setGenerating(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend document generation failed; falling back to local template generator', e);
+    }
     const content = generateDocument(docType, formData);
     setDocContent(content);
     setGenerated(true);
+    setGenerating(false);
   };
 
   const handleDownload = () => {
@@ -374,8 +400,8 @@ export default function DocumentModal({ docType, onClose, sessionId }) {
                   )}
                 </div>
               ))}
-              <button onClick={handleGenerate} style={styles.generateBtn}>
-                ✨ Generate Document
+              <button onClick={handleGenerate} disabled={generating} style={{ ...styles.generateBtn, opacity: generating ? 0.7 : 1 }}>
+                {generating ? '⏳ Generating Document...' : '✨ Generate Document'}
               </button>
             </div>
           ) : (
